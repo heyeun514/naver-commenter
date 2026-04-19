@@ -1,19 +1,21 @@
 #!/bin/bash
 set -e
 
+PYTHON=/opt/homebrew/bin/python3.11
+
 echo "=== 의존성 설치 ==="
-pip3 install -r requirements.txt
-playwright install chromium
+$PYTHON -m pip install -r requirements.txt
+$PYTHON -m playwright install chromium
 
 echo "=== 경로 확인 ==="
-PW_PATH=$(python3 -c 'import playwright; import os; print(os.path.dirname(playwright.__file__))')
+PW_PATH=$($PYTHON -c 'import playwright; import os; print(os.path.dirname(playwright.__file__))')
 BROWSER_DIR="$HOME/Library/Caches/ms-playwright"
 echo "Playwright: $PW_PATH"
 echo "Chromium: $BROWSER_DIR"
 
 echo "=== PyInstaller로 .app 빌드 ==="
 rm -rf dist/ build/ *.spec
-pyinstaller \
+$PYTHON -m PyInstaller \
   --windowed \
   --name "네이버댓글봇" \
   --osx-bundle-identifier "com.local.naver-commenter" \

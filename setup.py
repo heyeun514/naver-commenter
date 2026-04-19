@@ -55,6 +55,9 @@ def is_ollama_running() -> bool:
 def start_ollama_server():
     """백그라운드에서 ollama serve 실행."""
     ollama_path = _find_ollama_path() or "ollama"
+    # 실행 권한이 없으면 부여
+    if os.path.isfile(ollama_path) and not os.access(ollama_path, os.X_OK):
+        os.chmod(ollama_path, 0o755)
     subprocess.Popen(
         [ollama_path, "serve"],
         stdout=subprocess.DEVNULL,
@@ -145,6 +148,8 @@ def pull_model(model: str, log_fn=print) -> bool:
     """ollama pull <model> 실행 후 완료까지 대기."""
     log_fn(f"모델 다운로드 중: {model}  (수 GB, 시간이 걸릴 수 있어요)")
     ollama_path = _find_ollama_path() or "ollama"
+    if os.path.isfile(ollama_path) and not os.access(ollama_path, os.X_OK):
+        os.chmod(ollama_path, 0o755)
     try:
         proc = subprocess.Popen(
             [ollama_path, "pull", model],

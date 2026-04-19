@@ -15,37 +15,50 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("네이버 블로그 이웃 댓글봇")
-        self.resizable(False, False)
+        self.geometry("620x560")
+        self.resizable(True, True)
+        self.minsize(500, 400)
         self._stop_flag = threading.Event()
         self._ollama_model = None
         self._build_ui()
 
     def _build_ui(self):
         pad = {"padx": 12, "pady": 6}
+        BG = "#2b2b2b"
+        FG = "#f0f0f0"
+        FRAME_BG = "#3c3c3c"
+        self.configure(bg=BG)
+        self.tk_setPalette(
+            background=BG, foreground=FG,
+            activeBackground="#555555", activeForeground=FG,
+            highlightBackground=BG, highlightColor=FG,
+        )
 
         # Ollama 상태
-        status_frame = tk.Frame(self, bd=1, relief="sunken")
+        status_frame = tk.Frame(self, bg=FRAME_BG, bd=1, relief="sunken")
         status_frame.pack(fill="x", **pad)
-        self.ollama_label = tk.Label(status_frame, text="Ollama 상태: 확인 중...", anchor="w")
+        self.ollama_label = tk.Label(status_frame, text="Ollama 상태: 확인 중...", anchor="w", bg=FRAME_BG, fg=FG)
         self.ollama_label.pack(side="left", padx=6, pady=4)
         self.install_btn = tk.Button(
-            status_frame, text="설치 / 재시도", command=self._auto_setup
+            status_frame, text="설치 / 재시도", command=self._auto_setup,
+            bg="#555555", fg=FG, activebackground="#666666", activeforeground=FG
         )
         self.install_btn.pack(side="right", padx=6, pady=4)
 
         # 설정
-        config_frame = tk.LabelFrame(self, text="설정", **pad)
+        config_frame = tk.LabelFrame(self, text="설정", bg=BG, fg=FG, **pad)
         config_frame.pack(fill="x", padx=12)
-        tk.Label(config_frame, text="최대 이웃 수:").grid(row=0, column=0, sticky="w", padx=6, pady=4)
+        tk.Label(config_frame, text="최대 이웃 수:", bg=BG, fg=FG).grid(row=0, column=0, sticky="w", padx=6, pady=4)
         self.max_var = tk.IntVar(value=DEFAULT_MAX_NEIGHBORS)
-        tk.Spinbox(config_frame, from_=1, to=100, textvariable=self.max_var, width=6).grid(row=0, column=1, sticky="w")
+        tk.Spinbox(config_frame, from_=1, to=100, textvariable=self.max_var, width=6,
+                   bg=FRAME_BG, fg=FG, buttonbackground="#555555").grid(row=0, column=1, sticky="w")
 
         # 로그인 카운트다운
-        self.timer_label = tk.Label(self, text="", font=("", 14, "bold"), fg="#e74c3c")
+        self.timer_label = tk.Label(self, text="", font=("", 14, "bold"), fg="#e74c3c", bg=BG)
         self.timer_label.pack(**pad)
 
         # 버튼
-        btn_frame = tk.Frame(self)
+        btn_frame = tk.Frame(self, bg=BG)
         btn_frame.pack(**pad)
         self.start_btn = tk.Button(
             btn_frame, text="시작", width=12, bg="#1a7f4b", fg="#ffffff",
@@ -61,7 +74,9 @@ class App(tk.Tk):
         self.stop_btn.pack(side="left", padx=6)
 
         # 진행 로그
-        self.log = scrolledtext.ScrolledText(self, height=16, width=62, state="disabled", font=("Courier", 11))
+        self.log = scrolledtext.ScrolledText(self, height=16, width=62, state="disabled",
+                                             font=("Courier", 11), bg=FRAME_BG, fg=FG,
+                                             insertbackground=FG)
         self.log.pack(padx=12, pady=(0, 12))
 
         # 앱 시작 시 자동으로 환경 준비

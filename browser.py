@@ -1,11 +1,12 @@
 import random
 import time
+from typing import Optional
 from playwright.sync_api import sync_playwright, Browser, Page
 
 
 _playwright = None
-_browser: Browser | None = None
-_page: Page | None = None
+_browser: Optional[Browser] = None
+_page: Optional[Page] = None
 
 
 def launch() -> Page:
@@ -23,7 +24,7 @@ def launch() -> Page:
     return _page
 
 
-def get_page() -> Page | None:
+def get_page() -> Optional[Page]:
     return _page
 
 
