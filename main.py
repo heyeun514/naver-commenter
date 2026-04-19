@@ -7,7 +7,7 @@ import naver
 import ai
 import setup
 
-LOGIN_WAIT_SECONDS = 30
+LOGIN_WAIT_SECONDS = 60
 DEFAULT_MAX_NEIGHBORS = 20
 
 
@@ -48,13 +48,15 @@ class App(tk.Tk):
         btn_frame = tk.Frame(self)
         btn_frame.pack(**pad)
         self.start_btn = tk.Button(
-            btn_frame, text="시작", width=12, bg="#2ecc71", fg="white",
-            state="disabled", command=self._start
+            btn_frame, text="시작", width=12, bg="#1a7f4b", fg="#ffffff",
+            activebackground="#158a4a", activeforeground="#ffffff",
+            font=("", 11, "bold"), state="disabled", command=self._start
         )
         self.start_btn.pack(side="left", padx=6)
         self.stop_btn = tk.Button(
-            btn_frame, text="중지", width=12, bg="#e74c3c", fg="white",
-            state="disabled", command=self._stop
+            btn_frame, text="중지", width=12, bg="#c0392b", fg="#ffffff",
+            activebackground="#a93226", activeforeground="#ffffff",
+            font=("", 11, "bold"), state="disabled", command=self._stop
         )
         self.stop_btn.pack(side="left", padx=6)
 
@@ -116,14 +118,20 @@ class App(tk.Tk):
         self._stop_flag.set()
         self._log("--- 중지 요청됨 ---")
 
-    def _countdown(self, seconds: int):
+    def _wait_for_login(self, page, seconds: int):
+        """로그인 감지 시 즉시 진행, 아니면 최대 seconds초 대기."""
         for i in range(seconds, 0, -1):
             if self._stop_flag.is_set():
                 break
-            self.timer_label.config(text=f"로그인 대기: {i}초")
-            self.update_idletasks()
+            # 로그인 성공 시 URL이 변경됨
+            if "nidlogin" not in page.url:
+                self.after(0, lambda: self.timer_label.config(text="로그인 완료!"))
+                self._log("로그인이 감지되었습니다!")
+                threading.Event().wait(2)  # 리다이렉트 완료 대기
+                break
+            self.after(0, lambda s=i: self.timer_label.config(text=f"로그인 대기: {s}초"))
             threading.Event().wait(1)
-        self.timer_label.config(text="")
+        self.after(0, lambda: self.timer_label.config(text=""))
 
     def _run(self):
         try:
@@ -131,10 +139,14 @@ class App(tk.Tk):
             page = browser.launch()
             page.goto("https://nid.naver.com/nidlogin.login", wait_until="domcontentloaded")
             self._log(f"네이버 로그인 페이지가 열렸습니다. {LOGIN_WAIT_SECONDS}초 안에 로그인하세요.")
-            self._countdown(LOGIN_WAIT_SECONDS)
+            self._wait_for_login(page, LOGIN_WAIT_SECONDS)
 
             if self._stop_flag.is_set():
                 return
+
+            self._log("내 블로그 ID 확인 중...")
+            my_blog_id = naver.get_my_blog_id(page)
+            self._log(f"블로그 ID: {my_blog_id}")
 
             self._log("이웃 피드를 불러오는 중...")
             posts = naver.get_neighbor_post_urls(page, max_count=self.max_var.get())
@@ -151,7 +163,12 @@ class App(tk.Tk):
                     self._log("  ↳ 본문을 읽지 못했습니다. 건너뜁니다.")
                     continue
 
-                self._log("  ↳ Gemma 4로 댓글 생성 중...")
+                # 중복 댓글 체크
+                if my_blog_id and naver.has_my_comment(page, my_blog_id):
+                    self._log("  ↳ 이미 댓글을 달았습니다. 건너뜁니다.")
+                    continue
+
+                self._log("  ↳ AI로 댓글 생성 중...")
                 try:
                     comment = ai.generate_comment(title or post["title"], content, model=self._ollama_model)
                 except Exception as e:
@@ -159,7 +176,7 @@ class App(tk.Tk):
                     continue
 
                 self._log(f"  ↳ 댓글: {comment[:80]}{'...' if len(comment) > 80 else ''}")
-                success = naver.post_comment(page, url, comment)
+                success = naver.post_comment(page, comment)
                 self._log(f"  ↳ {'완료' if success else '댓글 입력란을 찾지 못했습니다'}")
                 browser.human_delay(1.5, 3.0)
 
@@ -168,8 +185,9 @@ class App(tk.Tk):
             self._log(f"오류 발생: {e}")
         finally:
             browser.close()
-            self.start_btn.config(state="normal")
-            self.stop_btn.config(state="disabled")
+            self.after(0, lambda: self.timer_label.config(text=""))
+            self.after(0, lambda: self.start_btn.config(state="normal"))
+            self.after(0, lambda: self.stop_btn.config(state="disabled"))
 
 
 if __name__ == "__main__":

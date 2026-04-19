@@ -2,8 +2,8 @@ import requests
 import json
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL_NAME = "gemma4"
-FALLBACK_MODEL = "gemma3"
+MODEL_NAME = "gemma3:4b"
+FALLBACK_MODEL = "gemma4"
 
 
 def check_ollama() -> tuple[bool, str]:
@@ -33,9 +33,19 @@ def generate_comment(title: str, content: str, model: str = MODEL_NAME) -> str:
     payload = {
         "model": model,
         "prompt": prompt,
-        "stream": False,
+        "stream": True,
     }
 
-    resp = requests.post(OLLAMA_URL, json=payload, timeout=60)
+    # 스트리밍으로 수신 — 모델 로딩 시간이 길어도 타임아웃 방지
+    resp = requests.post(OLLAMA_URL, json=payload, timeout=600, stream=True)
     resp.raise_for_status()
-    return resp.json()["response"].strip()
+
+    result = []
+    for line in resp.iter_lines():
+        if line:
+            chunk = json.loads(line)
+            result.append(chunk.get("response", ""))
+            if chunk.get("done"):
+                break
+
+    return "".join(result).strip()

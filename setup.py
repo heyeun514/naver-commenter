@@ -7,13 +7,40 @@ import urllib.request
 import threading
 from pathlib import Path
 
-OLLAMA_MODEL = "gemma4"
-OLLAMA_FALLBACK = "gemma3"
+OLLAMA_MODEL = "gemma3:4b"
+OLLAMA_FALLBACK = "gemma4"
 OLLAMA_MACOS_URL = "https://ollama.com/download/Ollama-darwin.zip"
 
 
+OLLAMA_KNOWN_PATHS = [
+    "/usr/local/bin/ollama",
+    "/usr/bin/ollama",
+    str(Path.home() / ".local" / "bin" / "ollama"),
+    "/Applications/Ollama.app/Contents/Resources/ollama",
+    str(Path.home() / "Applications" / "Ollama.app" / "Contents" / "Resources" / "ollama"),
+]
+
+
+def _find_ollama_path() -> str:
+    """ollama 실행 파일 경로 반환. 없으면 빈 문자열."""
+    # 1. PATH에서 찾기
+    found = shutil.which("ollama")
+    if found:
+        return found
+    # 2. 알려진 경로 직접 탐색 (.app 번들은 제한된 PATH를 가짐)
+    for p in OLLAMA_KNOWN_PATHS:
+        if Path(p).exists():
+            return p
+    return ""
+
+
 def is_ollama_installed() -> bool:
-    return shutil.which("ollama") is not None
+    path = _find_ollama_path()
+    if path:
+        # PATH에 등록되지 않은 경우 환경변수 보정
+        os.environ["PATH"] = str(Path(path).parent) + ":" + os.environ.get("PATH", "")
+        return True
+    return False
 
 
 def is_ollama_running() -> bool:
@@ -27,8 +54,9 @@ def is_ollama_running() -> bool:
 
 def start_ollama_server():
     """백그라운드에서 ollama serve 실행."""
+    ollama_path = _find_ollama_path() or "ollama"
     subprocess.Popen(
-        ["ollama", "serve"],
+        [ollama_path, "serve"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
@@ -97,7 +125,17 @@ def install_ollama_macos(log_fn=print) -> bool:
         try:
             os.symlink(cli_src, cli_dst)
         except PermissionError:
-            subprocess.run(["sudo", "ln", "-sf", str(cli_src), str(cli_dst)])
+            log_fn("symlink 권한 부족 — Ollama.app에서 직접 실행합니다.")
+            # /usr/local/bin 대신 사용자 PATH에 추가 시도
+            local_bin = Path.home() / ".local" / "bin"
+            local_bin.mkdir(parents=True, exist_ok=True)
+            local_dst = local_bin / "ollama"
+            if not local_dst.exists():
+                try:
+                    os.symlink(cli_src, local_dst)
+                    os.environ["PATH"] = str(local_bin) + ":" + os.environ.get("PATH", "")
+                except Exception:
+                    pass
 
     log_fn("Ollama 설치 완료!")
     return True
@@ -106,9 +144,10 @@ def install_ollama_macos(log_fn=print) -> bool:
 def pull_model(model: str, log_fn=print) -> bool:
     """ollama pull <model> 실행 후 완료까지 대기."""
     log_fn(f"모델 다운로드 중: {model}  (수 GB, 시간이 걸릴 수 있어요)")
+    ollama_path = _find_ollama_path() or "ollama"
     try:
         proc = subprocess.Popen(
-            ["ollama", "pull", model],
+            [ollama_path, "pull", model],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
